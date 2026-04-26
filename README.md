@@ -109,23 +109,62 @@ The workflow at `.github/workflows/playwright.yml` runs on every push and PR to 
 1. **Run test suite** — normal tests must pass; workflow fails if any do
 2. **Run demo failure tests** — runs with `continue-on-error: true`; workflow continues regardless
 3. **Upload artifacts** — both report sets uploaded for 7–14 days
-4. **Send email report** — HTML email with run status, Actions link, and artifact info
+4. **Send email report** — HTML email sent via Brevo SMTP always, even on failure
 
-### Required GitHub Secrets
+---
 
-Set these under **Settings → Secrets and variables → Actions**:
+## Email Reports (Brevo SMTP)
 
-| Secret | Description |
+The workflow sends an HTML email after every run containing:
+- **Status** — PASS / FAIL badge
+- **Date** of execution (UTC)
+- **Link** to the GitHub Actions run
+- **Attached** `playwright-report/index.html` for offline viewing
+- Summary of available artifact downloads (screenshots, videos, traces)
+
+### 1. Create a free Brevo account
+
+1. Sign up at [brevo.com](https://www.brevo.com) (free tier: 300 emails/day)
+2. Go to **Account → SMTP & API → SMTP**
+3. Note your **Login** (your account email) and generate an **SMTP Key** (this is your password — not your account password)
+
+### 2. Add GitHub Secrets
+
+Go to your repository → **Settings → Secrets and variables → Actions → New repository secret** and add each of the following:
+
+| Secret | Value |
 |---|---|
 | `BASE_URL` | `https://www.saucedemo.com` |
 | `STANDARD_USER` | `standard_user` |
 | `LOCKED_USER` | `locked_out_user` |
 | `PASSWORD` | `secret_sauce` |
-| `MAIL_SERVER` | SMTP host (e.g. `smtp.gmail.com`) |
-| `MAIL_PORT` | SMTP port (e.g. `465`) |
-| `MAIL_USERNAME` | SMTP login email |
-| `MAIL_PASSWORD` | SMTP password or app password |
-| `MAIL_TO` | Recipient email address |
-| `MAIL_FROM` | Sender address |
+| `MAIL_SERVER` | `smtp-relay.brevo.com` |
+| `MAIL_PORT` | `587` |
+| `MAIL_USERNAME` | Your Brevo account email (e.g. `you@example.com`) |
+| `MAIL_PASSWORD` | Your Brevo **SMTP Key** (from the SMTP settings page) |
+| `MAIL_FROM` | Sender address — must be a verified sender in Brevo |
+| `MAIL_TO` | Recipient address (can be any email) |
 
-> **Gmail users:** Generate an [App Password](https://myaccount.google.com/apppasswords) and use it as `MAIL_PASSWORD`.
+> **Why port 587?** Brevo recommends port 587 with STARTTLS. The workflow sets `secure: false`
+> so nodemailer negotiates STARTTLS automatically on connect. Do **not** change this to `true`
+> (that is for port 465 / direct SSL only).
+
+> **Verified sender:** In Brevo, go to **Senders & IPs → Senders** and add the address you
+> put in `MAIL_FROM`. Without verification Brevo will reject outgoing mail.
+
+### 3. Example Brevo configuration (summary)
+
+```
+SMTP host : smtp-relay.brevo.com
+Port      : 587
+Security  : STARTTLS  (secure: false in the workflow)
+Username  : your-brevo-login@example.com
+Password  : your-brevo-smtp-key   ← NOT your account password
+```
+
+### Attachment note
+
+`playwright-report/index.html` is attached directly to the email. Because it is a
+self-contained summary page, linked assets (charts, icons) may not render when opened
+from a mail client. Download the full `playwright-report-normal` artifact from the
+Actions run page for the complete interactive report.
